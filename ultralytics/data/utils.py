@@ -89,7 +89,7 @@ def get_boundingbox_from_mask(mask, format="xyxy"):
                 ])
             elif format == 'ltwh':
                 bboxes.append([x, y, w, h])
-    return np.array(bboxes).astype(np.float_)
+    return np.array(bboxes).astype(np.float32)
 
 def get_files_from_dir(dir,ext = None):
   allfiles = []
@@ -159,7 +159,7 @@ def get_boundingbox_from_polygons(polygons, format='xyxy'):
             ])
         elif format == 'ltwh':
             bboxes.append([x_min, y_min, w, h])
-    return np.array(bboxes).astype(np.float_)
+    return np.array(bboxes).astype(np.float32)
 
 def verify_rsi_image_and_mask(args):
     im_file, lb_file, colors, prefix, keypoint, num_cls, nkpt, ndim = args
@@ -197,7 +197,7 @@ def verify_rsi_image_and_mask(args):
         assert nl > 0
 
         h, w, _ = img_shape
-        lb = np.zeros((nl, 5), dtype=np.float_)
+        lb = np.zeros((nl, 5), dtype=np.float32)
         lb[:, 0] = np.array(categoris)
         lb[:, 1:] = get_boundingbox_from_polygons(segments, format='xyxy')
 
@@ -239,7 +239,7 @@ def verify_sky_image_and_mask_2(args):
         assert nl > 0
 
         h, w, _ = img_shape
-        lb = np.zeros((nl, 5), dtype=np.float_)
+        lb = np.zeros((nl, 5), dtype=np.float32)
         lb[:, 0] = 1
         lb[:, 1:] = get_boundingbox_from_mask(mask, format='xyxy')
 
@@ -279,7 +279,7 @@ def verify_sky_image_and_mask(args):
         assert nl > 0
 
         h, w, _ = img_shape
-        lb = np.zeros((nl, 5), dtype=np.float_)
+        lb = np.zeros((nl, 5), dtype=np.float32)
         lb[:, 0] = 1
         lb[:, 1:] = get_boundingbox_from_mask(mask, format='xyxy')
 
