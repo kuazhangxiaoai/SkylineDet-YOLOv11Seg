@@ -30,13 +30,13 @@ python val.py
 
 <div align="center">
 
-| Benchmark | Accuracy | Precision | Recall | Dice-Score | IoU    | Size | BaiduDrive       | GoogleDrive                                                                                        |
-|-----------|----------|-----------|--------|------------|--------|------|------------------|----------------------------------------------------------------------------------------------------|
-| YOLOv11-n | 99.195   | 98.308    | 98.834 | 98.513     | 0.9719 |  7.2MB   | **[Download](https://pan.baidu.com/s/1JUHHQchwc9Iect3tJycrgA?pwd=wsuj)** | **[Download](https://drive.google.com/file/d/1RCDWtzL5_ERvy87739BLttqtjtvtdcw5/view?usp=sharing)** |                                                                                  |
-| YOLOv11-s | 99.467   | 99.169    | 98.969 | 99.042     | 0.9816 |  24.8MB  | **[Download](https://pan.baidu.com/s/1yZV2C6E_wxwkpKjWYtt3Pg?pwd=ijwh)** | **[Download](https://drive.google.com/file/d/1wQefjuXMKrQLT-FZ2opcwXy5FOYc07vz/view?usp=sharing)** |
-| YOLOv11-m | 99.479   | 99.382    | 98.809 | 99.078     | 0.9821 |  51.4MB  | **[Download](https://pan.baidu.com/s/1VsBZmojjjyp5agSnIZ7hxQ?pwd=c7hh)** | **[Download](https://drive.google.com/file/d/1QXPhs1KWEiD_Ze0QyLLXEtHf5ghd0z2G/view?usp=sharing)** |                                                                                  |
-| YOLOv11-l | 99.406   | 99.186    | 99.034 | 99.036     | 0.9824 |  65.3MB  | **[Download](https://pan.baidu.com/s/1_ZsF2VAtuL075ZXlHfXsKg?pwd=wu1p)** | **[Download](https://drive.google.com/file/d/1HbZxLND7ojvegxyL_DKpp5NSIr6_ScWf/view?usp=sharing)** |                                                                                  |
-| YOLOv11-x | 99.565   | 99.465    | 99.101 | 99.253     | 0.9858 |  145.8MB | **[Download](https://pan.baidu.com/s/1nEDZQcy6FVKWGCnClok5Jg?pwd=r93m)** | **[Download](https://drive.google.com/file/d/11FdmWxOKi0qHi_s8OZFkj4LF99UoB3GG/view?usp=sharing)** |
+| Benchmark                                                                                                                       | Accuracy | Precision | Recall | Dice-Score | IoU    | Size |                                                                                      |
+|---------------------------------------------------------------------------------------------------------------------------------|----------|-----------|--------|------------|--------|------|---|
+| [YOLOv11-n](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11n-skyseg-skyfinder.pt)   | 99.195   | 98.308    | 98.834 | 98.513     | 0.9719 |  7.2MB   |                                                                                   |
+| [YOLOv11-s](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11s-skyseg-skyfinder.pt)   | 99.467   | 99.169    | 98.969 | 99.042     | 0.9816 |  24.8MB  | 
+| [YOLOv11-m](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11m-skyseg-skyfinder.pt)   | 99.479   | 99.382    | 98.809 | 99.078     | 0.9821 |  51.4MB  |                                                                                   |
+| [YOLOv11-l](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11l-skyseg-skyfinder.pt)   | 99.406   | 99.186    | 99.034 | 99.036     | 0.9824 |  65.3MB  |                                                                                   |
+| [YOLOv11-x](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11x-skyseg-skyfinder-2.pt) | 99.565   | 99.465    | 99.101 | 99.253     | 0.9858 |  145.8MB | 
 
 
 </div>
