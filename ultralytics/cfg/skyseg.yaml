@@ -5,7 +5,7 @@ task: segment # (str) YOLO task, i.e. detect, segment, classify, pose, obb
 mode: train # (str) YOLO mode, i.e. train, val, predict, export, track, benchmark
 
 # Train settings -------------------------------------------------------------------------------------------------------
-model: /media/yanggang/847C02507C023D84/python_workspace/SkylineDet-YOLOv11seg/weights/yolo11x-skyseg-geopose3k.pt # (str, optional) path to model file, i.e. yolov8n.pt, yolov8n.yaml
+model: /media/yanggang/847C02507C023D84/python_workspace/SkylineDet-YOLOv11seg/weights/yolo11n-skyseg-skyfinder.pt # (str, optional) path to model file, i.e. yolov8n.pt, yolov8n.yaml
 data: /media/yanggang/847C02507C023D84/python_workspace/SkylineDet-YOLOv11seg/ultralytics/cfg/datasets/Skyfinder.yaml # (str, optional) path to data file, i.e. coco8.yaml
 epochs: 20 # (int) number of epochs to train for
 time: # (float, optional) number of hours to train for, overrides epochs if supplied
