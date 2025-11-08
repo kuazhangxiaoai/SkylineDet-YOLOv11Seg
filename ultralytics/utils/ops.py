@@ -1,6 +1,7 @@
 # Ultralytics YOLO 🚀, AGPL-3.0 license
 
 import contextlib
+import copy
 import math
 import re
 import time
@@ -12,7 +13,7 @@ import torch.nn.functional as F
 
 from ultralytics.utils import LOGGER
 from ultralytics.utils.metrics import batch_probiou
-
+from ultralytics.utils.loss import SkylineLoss
 
 class Profile(contextlib.ContextDecorator):
     """
@@ -832,3 +833,44 @@ def clean_str(s):
         (str): a string with special characters replaced by an underscore _
     """
     return re.sub(pattern="[|@#!¡·$€%&()=?¿^*;:,¨´><+]", repl="_", string=s)
+
+def dynamic_boundary_extract(mask, n_init_sample=16, thresh=114, alpha=0.1, belta=0.8, steps=20, v0=0):
+    """
+    Dynamic skyline extract function for extract the skyline from the binary mask image
+
+    Args:
+        mask: input mask image, given by neural network
+        n_init_sample: the number of initial sample
+        thresh: threshold
+        alpha: a factor for adaptive searching
+        belta: a factor for adaptive searching
+        steps: the number of searching steps
+        v0: initial update speed
+    Return:
+        （list）: a list of coordinates of skyline
+
+    """
+    cost = SkylineLoss(thresh)
+    h, w = mask.shape[:-1]
+    init_points = [[x, 0] for x in range(0, w, n_init_sample)]
+    start_points = []
+    for points in init_points:
+        x, y = points
+        for i in range(1, h-1):
+            if mask[i+1, x, 0] < thresh and mask[i-1,x,0] > thresh:
+                start_points.append([x, i])
+                break
+
+    heights = [pt[1] for pt in start_points]
+    init_heights = 0.5 * (np.array(heights).max() + np.array(heights).min())
+    init_points = [[x, int(init_heights)] for x in range(w)]
+    refined_points = copy.deepcopy(init_points)
+
+    for pt in refined_points:
+        vt = v0
+        for step in range(steps):
+            vt = belta * vt + (1 - belta) * cost(pt, mask)
+            dp = round(alpha * vt + 0.5) if alpha * vt > 0 else round(alpha * vt - 0.5)
+            pt[1] = pt[1] - dp
+
+    return refined_points

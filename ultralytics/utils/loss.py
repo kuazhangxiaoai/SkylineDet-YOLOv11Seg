@@ -1,8 +1,9 @@
 # Ultralytics YOLO 🚀, AGPL-3.0 license
-
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from panel.widgets.indicators import ptqdm
 
 from ultralytics.utils.metrics import OKS_SIGMA
 from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
@@ -755,3 +756,28 @@ class E2EDetectLoss:
         one2one = preds["one2one"]
         loss_one2one = self.one2one(one2one, batch)
         return loss_one2many[0] + loss_one2one[0], loss_one2many[1] + loss_one2one[1]
+
+class SkylineLoss:
+    def __init__(self, thresh):
+        self.thresh = thresh
+
+    def __call__(self, points, mask):
+        x, y = points
+        h, w = mask.shape[:-1]
+        line = mask[:, x, 0]
+        c = 0
+        if line[y] > self.thresh:
+            for i in range(y, h):
+                if line[i] < self.thresh:
+                    break
+                else:
+                    c = c + 1
+            return -1 * c
+
+        else:
+            for i in range(y, -1, -1):
+                if line[i] > self.thresh:
+                    break
+                else:
+                    c = c + 1
+            return c
