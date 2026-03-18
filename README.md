@@ -31,11 +31,11 @@ python val.py
 <div align="center">
 
 | Benchmark                                                                                                                       | Accuracy | Precision | Recall | Dice-Score | IoU    | Size |                                                                                      |
-|---------------------------------------------------------------------------------------------------------------------------------|----------|-----------|--------|------------|--------|------|---|
-| [YOLOv11-n](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11n-skyseg-skyfinder.pt)   | 99.195   | 98.308    | 98.834 | 98.513     | 0.9719 |  7.2MB   |                                                                                   |
+|---------------------------------------------------------------------------------------------------------------------------------|----------|-----------|--------|------------|--------|------|--------------------------------------------------------------------------------------|
+| [YOLOv11-n](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11n-skyseg-skyfinder.pt)   | 99.195   | 98.308    | 98.834 | 98.513     | 0.9719 |  7.2MB   |                                                                                      |
 | [YOLOv11-s](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11s-skyseg-skyfinder.pt)   | 99.467   | 99.169    | 98.969 | 99.042     | 0.9816 |  24.8MB  | 
-| [YOLOv11-m](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11m-skyseg-skyfinder.pt)   | 99.479   | 99.382    | 98.809 | 99.078     | 0.9821 |  51.4MB  |                                                                                   |
-| [YOLOv11-l](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11l-skyseg-skyfinder.pt)   | 99.406   | 99.186    | 99.034 | 99.036     | 0.9824 |  65.3MB  |                                                                                   |
+| [YOLOv11-m](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11m-skyseg-skyfinder.pt)   | 99.479   | 99.382    | 98.809 | 99.078     | 0.9821 |  51.4MB  |                                                                                      |
+| [YOLOv11-l](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11l-skyseg-skyfinder.pt)   | 99.406   | 99.186    | 99.034 | 99.036     | 0.9824 |  65.3MB  |                                                                                      |
 | [YOLOv11-x](https://github.com/kuazhangxiaoai/SkylineDet-YOLOv11Seg/releases/download/pretrained/yolo11x-skyseg-skyfinder-2.pt) | 99.565   | 99.465    | 99.101 | 99.253     | 0.9858 |  145.8MB | 
 
 

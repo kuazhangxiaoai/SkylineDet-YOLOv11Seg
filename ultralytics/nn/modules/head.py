@@ -15,7 +15,7 @@ from .conv import Conv, DWConv
 from .transformer import MLP, DeformableTransformerDecoder, DeformableTransformerDecoderLayer
 from .utils import bias_init_with_prob, linear_init
 
-__all__ = "Detect", "Segment", "Pose", "Classify", "OBB", "RTDETRDecoder", "v10Detect"
+__all__ = "Detect", "Segment", "Pose", "Classify", "OBB", "RTDETRDecoder", "v10Detect", "SemanticSegment"
 
 
 class Detect(nn.Module):
@@ -211,7 +211,7 @@ class Segment(Detect):
             return x, mc, p
         return (torch.cat([x, mc], 1), p) if self.export else (torch.cat([x[0], mc], 1), (x[1], mc, p))
 
-class SematicSegment(nn.Module):
+class SemanticSegment(nn.Module):
     """YOLO Segment head for segmentation models."""
 
     def __init__(self, nc=80, nm=32, npr=256, ch=()):

@@ -72,7 +72,7 @@ from .conv import (
     RepConv,
     SpatialAttention,
 )
-from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, WorldDetect, v10Detect, SkySegment, SematicSegment
+from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, WorldDetect, v10Detect, SkySegment, SemanticSegment
 from .transformer import (
     AIFI,
     MLP,
@@ -157,5 +157,5 @@ __all__ = (
     "Attention",
     "PSA",
     "SkySegment",
-    "SematicSegment"
+    "SemanticSegment"
 )
