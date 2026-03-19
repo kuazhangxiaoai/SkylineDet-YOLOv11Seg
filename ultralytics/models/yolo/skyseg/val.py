@@ -67,34 +67,12 @@ class SkySegmentationValidator(DetectionValidator):
             check_requirements("pycocotools>=2.0.6")
         # more accurate vs faster
         self.process = ops.process_mask_native if self.args.save_json or self.args.save_txt else ops.process_mask
-        self.stats = dict(tp_m=[],
-                          tp=[],
-                          conf=[],
-                          pred_cls=[],
-                          target_cls=[],
-                          target_img=[],
-                          accuracy=[],
-                          precision=[],
-                          recall=[],
-                          mIoU=[],
-                          dice_score=[],
-                          mcr=[])
+        self.stats = dict(precision=[], recall=[], dice_score=[], mIoU=[], mcr=[])
 
     def get_desc(self):
         """Return a formatted description of evaluation metrics."""
-        return ("%22s" + "%11s" * 16) % (
+        return ("%22s" + "%11s" * 5) % (
             "Class",
-            "Images",
-            "Instances",
-            "Box(P",
-            "R",
-            "mAP50",
-            "mAP50-95)",
-            "Mask(P",
-            "R",
-            "mAP50",
-            "mAP50-95)",
-            "Accuracy",
             "Precision",
             "Recall",
             "mIoU",
@@ -120,46 +98,18 @@ class SkySegmentationValidator(DetectionValidator):
     def _prepare_batch(self, si, batch):
         """Prepares a batch for training or inference by processing images and targets."""
         prepared_batch = super()._prepare_batch(si, batch)
-        midx = [si] if self.args.overlap_mask else batch["batch_idx"] == si
-        prepared_batch["masks"] = batch["masks"][midx]
+        prepared_batch["batch_idx"] = si
         return prepared_batch
 
-    def _prepare_pred(self, pred, pbatch, proto):
+    def _prepare_pred(self, pred):
         """Prepares a batch for training or inference by processing images and targets."""
-        predn = super()._prepare_pred(pred, pbatch)
-        pred_masks = self.process(proto, pred[:, 6:], pred[:, :4], shape=pbatch["imgsz"])
-        return predn, pred_masks
-
-    def instance2semantic(self, predn, pred_masks, gt_masks, cls, nc):
-        nl, mh, mw = pred_masks.shape
-        pred_semantic_mask = torch.zeros((nc, mh, mw), dtype=torch.float, device=self.device)
-        gt_semantic_mask = torch.zeros_like(pred_semantic_mask)
-        pred_cls = predn[:, 5]
-        for i in range(nc):
-            m0 = pred_cls == i
-            m1 = cls == i
-            if m0.any():
-                pred_semantic_mask[i,:,:],_ = pred_masks[m0].max(dim=0)
-
-            if m1.any():
-                gt_semantic_mask[i, :, :], _ = gt_masks[m1].max(dim=0)
-
-
-        return pred_semantic_mask, gt_semantic_mask
-
-
+        return pred
 
     def update_metrics(self, preds, batch):
         """Metrics."""
-        for si, (pred, proto) in enumerate(zip(preds[0], preds[1])):
+        for si, pred in enumerate(preds):
             self.seen += 1
-            npr = len(pred)
             stat = dict(
-                conf=torch.zeros(0, device=self.device),
-                pred_cls=torch.zeros(0, device=self.device),
-                tp=torch.zeros(npr, self.niou, dtype=torch.bool, device=self.device),
-                tp_m=torch.zeros(npr, self.niou, dtype=torch.bool, device=self.device),
-                accuracy=torch.zeros(1, 1, dtype=torch.float, device=self.device),
                 precision=torch.zeros(1, 1, dtype=torch.float, device=self.device),
                 recall=torch.zeros(1, 1, dtype=torch.float, device=self.device),
                 mIoU=torch.zeros(1, 1, dtype=torch.float, device=self.device),
@@ -171,90 +121,40 @@ class SkySegmentationValidator(DetectionValidator):
             nl = len(cls)
             stat["target_cls"] = cls
             stat["target_img"] = cls.unique()
-            if npr == 0:
-                if nl:
-                    for k in self.stats.keys():
-                        self.stats[k].append(stat[k])
-                    if self.args.plots:
-                        self.confusion_matrix.process_batch(detections=None, gt_bboxes=bbox, gt_cls=cls)
-                continue
 
             # Masks
-            gt_masks = pbatch.pop("masks")
-            # Predictions
-            if self.args.single_cls:
-                pred[:, 5] = 0
-            predn, pred_masks = self._prepare_pred(pred, pbatch, proto)
-            stat["conf"] = predn[:, 4]
-            stat["pred_cls"] = predn[:, 5]
+            if len(batch["masks"][si].shape) == 2:
+                gt_mask = F.one_hot(batch["masks"][si], num_classes=self.nc).permute(2, 0, 1)
+                pred = F.one_hot(pred.max(dim=0)[1], num_classes=self.nc).permute(2, 0, 1)
+            elif len(batch["masks"][si].shape) == 3 and batch["masks"][si].max() > 1:
+                gt_mask = batch["masks"][si] / 255
 
             # Evaluate
-            if nl:
-                stat["tp"] = self._process_batch(predn, bbox, cls)
-                stat["tp_m"] = self._process_batch(
-                    predn, bbox, cls, pred_masks, gt_masks, self.args.overlap_mask, masks=True
-                )
-                pred_semantic_masks, gt_semantic_masks = self.instance2semantic(predn, pred_masks,gt_masks, cls, self.nc)
-                stat['accuracy']= mask_accuracy(
-                    gt_semantic_masks.view(self.nc,-1),
-                    (pred_semantic_masks > 0.5).float().view(self.nc,-1)
-                ).unsqueeze(0)
+            stat["precision"] = self.mask_precisions(
+                (pred > 0.2).float().view(self.nc, -1), (gt_mask > 0.2).float().view(self.nc, -1)
+            )
 
-                stat['precision'] = mask_precision(
-                    gt_semantic_masks.view(self.nc, -1),
-                    (pred_semantic_masks > 0.5).float().view(self.nc, -1)
-                ).unsqueeze(0)
+            stat["recall"] = self.mask_recalls(
+                (pred > 0.2).float().view(self.nc, -1), (gt_mask > 0.2).float().view(self.nc, -1)
+            )
 
-                stat['recall'] = mask_recall(
-                    gt_semantic_masks.view(self.nc, -1),
-                    (pred_semantic_masks > 0.5).float().view(self.nc, -1)
-                ).unsqueeze(0)
+            stat["dice_score"] = self.mask_dice_scores(
+                (pred > 0.2).float().view(self.nc, -1), (gt_mask > 0.2).float().view(self.nc, -1)
+            )
 
-                stat['mIoU'] = mask_iou(
-                    gt_semantic_masks.view(self.nc,-1),
-                    (pred_semantic_masks > 0.5).float().view(self.nc,-1)
-                ).unsqueeze(0)
+            stat["mIoU"] = self.mask_ious(
+                (pred > 0.2).float().view(self.nc, -1), (gt_mask > 0.2).float().view(self.nc, -1)
+            )
 
-                stat['dice_score'] = dice_score(
-                    gt_semantic_masks.view(self.nc, -1),
-                    (pred_semantic_masks > 0.5).float().view(self.nc, -1)
-                ).unsqueeze(0)
-
-                stat['mcr'] = mask_mcr(gt_semantic_masks.view(self.nc,-1), (
-                        pred_semantic_masks > 0.5).float().view(self.nc,-1)
-                ).unsqueeze(0)
-
-                if self.args.plots:
-                    self.confusion_matrix.process_batch(predn, bbox, cls)
+            stat["mcr"] = self.mask_mcrs(
+                (pred > 0.2).float().view(self.nc, -1), (gt_mask > 0.2).float().view(self.nc, -1)
+            )
 
             for k in self.stats.keys():
-                self.stats[k].append(stat[k])
+                self.stats[k].append(stat[k].unsqueeze(0))
 
-            pred_masks = torch.as_tensor(pred_masks, dtype=torch.uint8)
-            #if self.args.plots and self.batch_i < 3:
-            plot_eval_images_skyseg(pred_masks[0], gt_semantic_masks[0], self.save_dir, batch['im_file'][si])
-                #self.plot_masks.append(pred_masks[:15].cpu())  # filter top 15 to plot
-
-            # Save
-            if self.args.save_json:
-                self.pred_to_json(
-                    predn,
-                    batch["im_file"][si],
-                    ops.scale_image(
-                        pred_masks.permute(1, 2, 0).contiguous().cpu().numpy(),
-                        pbatch["ori_shape"],
-                        ratio_pad=batch["ratio_pad"][si],
-                    ),
-                )
-            if self.args.save_txt:
-                self.save_one_txt(
-                    predn,
-                    pred_masks,
-                    self.args.save_conf,
-                    pbatch["ori_shape"],
-                    self.save_dir / "labels" / f'{Path(batch["im_file"][si]).stem}.txt',
-                )
-
+            if (self.args.plots and self.batch_i < 3) or (not self.training):
+                self.plot_masks.append(pred.cpu().unsqueeze(0))
 
     def finalize_metrics(self, *args, **kwargs):
         """Sets speed and confusion matrix for evaluation metrics."""
@@ -407,6 +307,114 @@ class SkySegmentationValidator(DetectionValidator):
             except Exception as e:
                 LOGGER.warning(f"pycocotools unable to run: {e}")
         return stats
+
+    def mask_ious(self, pred_mask_for_category, gt_mask_for_catgory):
+        """Compute mIoU for each categories.
+
+        Args:
+            pred_mask_for_category(torch.Tensor): predict mask of each category
+            gt_mask_for_catgory(torch.Tensor): groundtruth mask of each category
+
+        Returns:
+            iou(torch.Tensor): IoU of each category.
+        """
+        nc, _length = pred_mask_for_category.shape
+        ious = torch.zeros([nc], dtype=pred_mask_for_category.dtype, device=self.device)
+        for i in range(nc):
+            pred_mask = pred_mask_for_category[i, :]
+            gt_mask = gt_mask_for_catgory[i, :]
+            ious[i] = mask_iou(pred_mask[None, :], gt_mask[None, :])
+        return ious
+
+    def mask_precisions(self, pred_mask_for_category, gt_mask_for_catgory):
+        """Compute precisions for each categories.
+
+        Args:
+            pred_mask_for_category(torch.Tensor): predict mask of each category
+            gt_mask_for_catgory(torch.Tensor): groundtruth mask of each category
+
+        Returns:
+            precisions(torch.Tensor): precisions of each category.
+        """
+        nc, _length = pred_mask_for_category.shape
+        precisions = torch.zeros([nc], dtype=pred_mask_for_category.dtype, device=self.device)
+        for i in range(nc):
+            pred_mask = pred_mask_for_category[i, :]
+            gt_mask = gt_mask_for_catgory[i, :]
+            precisions[i] = mask_precision(pred_mask[None, :], gt_mask[None, :])
+        return precisions
+
+    def mask_recalls(self, pred_mask_for_category, gt_mask_for_catgory):
+        """Compute recalls for each categories.
+
+        Args:
+            pred_mask_for_category(torch.Tensor): predict mask of each category
+            gt_mask_for_catgory(torch.Tensor): groundtruth mask of each category
+
+        Returns:
+            recall(torch.Tensor): recalls of each category.
+        """
+        nc, _length = pred_mask_for_category.shape
+        recalls = torch.zeros([nc], dtype=pred_mask_for_category.dtype, device=self.device)
+        for i in range(nc):
+            pred_mask = pred_mask_for_category[i, :]
+            gt_mask = gt_mask_for_catgory[i, :]
+            recalls[i] = mask_recall(pred_mask[None, :], gt_mask[None, :])
+        return recalls
+
+    def mask_accuracys(self, pred_mask_for_category, gt_mask_for_catgory):
+        """Compute accuracys for each categories.
+
+        Args:
+            pred_mask_for_category(torch.Tensor): predict mask of each category
+            gt_mask_for_catgory(torch.Tensor): groundtruth mask of each category
+
+        Returns:
+            accuracys(torch.Tensor): accuracys of each category.
+        """
+        nc, _length = pred_mask_for_category.shape
+        accuracys = torch.zeros([nc], dtype=pred_mask_for_category.dtype, device=self.device)
+        for i in range(nc):
+            pred_mask = pred_mask_for_category[i, :]
+            gt_mask = gt_mask_for_catgory[i, :]
+            accuracys[i] = mask_accuracy(pred_mask[None, :], gt_mask[None, :])
+        return accuracys
+
+    def mask_mcrs(self, pred_mask_for_category, gt_mask_for_catgory):
+        """Compute MCR for each categories.
+
+        Args:
+            pred_mask_for_category(torch.Tensor): predict mask of each category
+            gt_mask_for_catgory(torch.Tensor): groundtruth mask of each category
+
+        Returns:
+            MCR(torch.Tensor): MCR of each category.
+        """
+        nc, _length = pred_mask_for_category.shape
+        mcrs = torch.zeros([nc], dtype=pred_mask_for_category.dtype, device=self.device)
+        for i in range(nc):
+            pred_mask = pred_mask_for_category[i, :]
+            gt_mask = gt_mask_for_catgory[i, :]
+            mcrs[i] = mask_mcr(pred_mask[None, :], gt_mask[None, :])
+        return mcrs
+
+    def mask_dice_scores(self, pred_mask_for_category, gt_mask_for_catgory):
+        """Compute Dice Score for each categories.
+
+        Args:
+            pred_mask_for_category(torch.Tensor): predict mask of each category
+            gt_mask_for_catgory(torch.Tensor): groundtruth mask of each category
+
+        Returns:
+            Dice Score(torch.Tensor): Dice Score of each category.
+        """
+        nc, _length = pred_mask_for_category.shape
+        dice_scores = torch.zeros([nc], dtype=pred_mask_for_category.dtype, device=self.device)
+        for i in range(nc):
+            pred_mask = pred_mask_for_category[i, :]
+            gt_mask = gt_mask_for_catgory[i, :]
+            dice_scores[i] = dice_score(pred_mask[None, :], gt_mask[None, :])
+        return dice_scores
 
 class SkyLineValidator(DetectionValidator):
     """

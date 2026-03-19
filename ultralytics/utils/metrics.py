@@ -839,7 +839,6 @@ class SegMetric(Metric):
     def __init__(self):
         super().__init__()
         self.all_dice_score=[]
-        self.all_accuracy=[]
         self.all_precision=[]
         self.all_recall=[]
         self.all_iou = []
@@ -847,35 +846,31 @@ class SegMetric(Metric):
 
     def mean_results(self):
         """Mean of results, return mp, mr, map50, map."""
-        return [self.mp, self.mr, self.map50, self.map, self.accuracy, self.precision, self.recall, self.mIoU, self.dice_score, self.mcr]
+        return [self.precision, self.recall, self.mIoU, self.dice_score, self.mcr]
 
     @property
     def mIoU(self):
-        return self.all_iou.mean() if len(self.all_iou) else 0.0
-
-    @property
-    def accuracy(self):
-        return self.all_accuracy.mean() if len(self.all_accuracy) else 0.0
+        return np.array(self.all_iou).mean() if len(self.all_iou) else 0.0
 
     @property
     def precision(self):
-        return self.all_precision.mean() if len(self.all_precision) else 0.0
+        return np.array(self.all_precision).mean() if len(self.all_precision) else 0.0
 
     @property
     def recall(self):
-        return self.all_recall.mean() if len(self.all_recall) else 0.0
+        return np.array(self.all_recall).mean() if len(self.all_recall) else 0.0
 
     @property
     def dice_score(self):
-        return self.all_dice_score.mean() if len(self.all_dice_score) else 0.0
+        return np.array(self.all_dice_score).mean() if len(self.all_dice_score) else 0.0
 
     @property
     def mcr(self):
-        return self.all_mcr.mean() if len(self.all_mcr) else 0.0
+        return np.array(self.all_mcr).mean() if len(self.all_mcr) else 0.0
 
     def fitness(self):
         """Model fitness as a weighted combination of metrics."""
-        w = [0.0, 0.0, 0.1, 0.9, 0.0, 0.0,0.0,0.0,0.0,0.0]  # weights for [P, R, mAP@0.5, mAP@0.5:0.95]
+        w = [0.0,0.0,0.0,0.0,0.0]  # weights for [P, R, mAP@0.5, mAP@0.5:0.95]
         return (np.array(self.mean_results()) * w).sum()
 
     def update(self, results):
@@ -895,17 +890,6 @@ class SegMetric(Metric):
             on the values provided in the `results` tuple.
         """
         (
-            self.p,
-            self.r,
-            self.f1,
-            self.all_ap,
-            self.ap_class_index,
-            self.p_curve,
-            self.r_curve,
-            self.f1_curve,
-            self.px,
-            self.prec_values,
-            self.all_accuracy,
             self.all_precision,
             self.all_recall,
             self.all_iou,
@@ -1231,7 +1215,6 @@ class SkySegmentMetrics(SimpleClass):
         self.plot = plot
         self.on_plot = on_plot
         self.names = names
-        self.box = Metric()
         self.seg = SegMetric()
         self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
         self.task = "segment"
@@ -1248,67 +1231,33 @@ class SkySegmentMetrics(SimpleClass):
             pred_cls (list): List of predicted classes.
             target_cls (list): List of target classes.
         """
-        results_mask = ap_per_class(
-            tp_m,
-            conf,
-            pred_cls,
-            target_cls,
-            plot=self.plot,
-            on_plot=self.on_plot,
-            save_dir=self.save_dir,
-            names=self.names,
-            prefix="Mask",
-        )[2:]
-        results_mask = (*results_mask,
-                        accuracy.mean()[None],
-                        precision.mean()[None],
-                        recall.mean()[None],
-                        mIoU.mean()[None],
-                        dice_score.mean()[None],
-                        mcr.mean()[None])
+
+        results_mask = (precision.mean(axis=0),
+                        recall.mean(axis=0),
+                        mIoU.mean(axis=0),
+                        dice_score.mean(axis=0),
+                        mcr.mean(axis=0))
         self.seg.nc = len(self.names)
         self.seg.update(results_mask)
-        results_box = ap_per_class(
-            tp,
-            conf,
-            pred_cls,
-            target_cls,
-            plot=self.plot,
-            on_plot=self.on_plot,
-            save_dir=self.save_dir,
-            names=self.names,
-            prefix="Box",
-        )[2:]
-        self.box.nc = len(self.names)
-        self.box.update(results_box)
 
     @property
     def keys(self):
         """Returns a list of keys for accessing metrics."""
         return [
-            "metrics/precision(B)",
-            "metrics/recall(B)",
-            "metrics/mAP50(B)",
-            "metrics/mAP50-95(B)",
-            "metrics/precision(M)",
-            "metrics/recall(M)",
-            "metrics/mAP50(M)",
-            "metrics/mAP50-95(M)",
-            "metrics/Accuracy(M)",
-            "metrics/Precisio(M)",
-            "metrics/Recall(M)",
-            "metrics/mIoU(M)",
+            "metrics/Precision",
+            "metrics/Recall",
+            "metrics/mIoU",
             "metrics/Dice-Score",
-            "metrics/MCR(M)",
+            "metrics/MCR",
         ]
 
     def mean_results(self):
         """Return the mean metrics for bounding box and segmentation results."""
-        return self.box.mean_results() + self.seg.mean_results()
+        return self.seg.mean_results()
 
     def class_result(self, i):
         """Returns classification results for a specified class index."""
-        return self.box.class_result(i) + self.seg.class_result(i)
+        return self.seg.class_result(i)
 
     @property
     def maps(self):
@@ -1318,7 +1267,7 @@ class SkySegmentMetrics(SimpleClass):
     @property
     def fitness(self):
         """Get the fitness score for both segmentation and bounding box models."""
-        return self.seg.fitness() + self.box.fitness()
+        return self.seg.fitness()
 
     @property
     def ap_class_index(self):
@@ -1334,10 +1283,6 @@ class SkySegmentMetrics(SimpleClass):
     def curves(self):
         """Returns a list of curves for accessing specific metrics curves."""
         return [
-            "Precision-Recall(B)",
-            "F1-Confidence(B)",
-            "Precision-Confidence(B)",
-            "Recall-Confidence(B)",
             "Precision-Recall(M)",
             "F1-Confidence(M)",
             "Precision-Confidence(M)",
@@ -1347,7 +1292,7 @@ class SkySegmentMetrics(SimpleClass):
     @property
     def curves_results(self):
         """Returns dictionary of computed performance metrics and statistics."""
-        return self.box.curves_results + self.seg.curves_results
+        return self.seg.curves_results
 
 class SkylineMetrics(SimpleClass):
     def __init__(self, save_dir=Path("."), plot=False, on_plot=None, names=()) -> None:
