@@ -2361,7 +2361,7 @@ def semantic_transforms(dataset, imgsz, hyp, stretch=False):
         >>> transforms = v8_transforms(dataset, imgsz=640, hyp=hyp)
         >>> augmented_data = transforms(dataset[0])
     """
-    mosaic = SematicMosaic(dataset, imgsz=imgsz, p=hyp.mosaic)
+    mosaic = SemanticMosaic(dataset, imgsz=imgsz, p=hyp.mosaic)
     affine = SemanticRandomPerspective(
         degrees=hyp.degrees,
         translate=hyp.translate,
@@ -2793,7 +2793,7 @@ class ToTensor:
         return im
 
 #-------------------------------------------semantic-segmetation--------------------------------------------------------------------#
-class SematicMosaic(BaseMixTransform):
+class SemanticMosaic(BaseMixTransform):
     """
     Mosaic augmentation for image datasets.
 
@@ -2823,7 +2823,7 @@ class SematicMosaic(BaseMixTransform):
         >>> augmented_labels = mosaic_aug(original_labels)
     """
 
-    def __init__(self, dataset, imgsz=640, p=1.0, n=4):
+    def __init__(self, dataset, imgsz=640, p=1.0):
         """
         Initializes the Mosaic augmentation object.
 
@@ -2842,11 +2842,10 @@ class SematicMosaic(BaseMixTransform):
             >>> mosaic_aug = Mosaic(dataset, imgsz=640, p=0.5, n=4)
         """
         assert 0 <= p <= 1.0, f"The probability should be in range [0, 1], but got {p}."
-        assert n in {4, 9}, "grid must be equal to 4 or 9."
         super().__init__(dataset=dataset, p=p)
         self.imgsz = imgsz
         self.border = (-imgsz // 2, -imgsz // 2)  # width, height
-        self.n = n
+        self.n = 4
 
     def get_indexes(self, buffer=True):
         """
@@ -2899,71 +2898,9 @@ class SematicMosaic(BaseMixTransform):
         assert labels.get("rect_shape", None) is None, "rect and mosaic are mutually exclusive."
         assert len(labels.get("mix_labels", [])), "There are no other images for mosaic augment."
         return (
-            self._mosaic3(labels) if self.n == 3 else self._mosaic4(labels) if self.n == 4 else self._mosaic9(labels)
+            self._mosaic4(labels)
         )  # This code is modified for mosaic3 method.
 
-    def _mosaic3(self, labels):
-        """
-        Creates a 1x3 image mosaic by combining three images.
-
-        This method arranges three images in a horizontal layout, with the main image in the center and two
-        additional images on either side. It's part of the Mosaic augmentation technique used in object detection.
-
-        Args:
-            labels (Dict): A dictionary containing image and label information for the main (center) image.
-                Must include 'img' key with the image array, and 'mix_labels' key with a list of two
-                dictionaries containing information for the side images.
-
-        Returns:
-            (Dict): A dictionary with the mosaic image and updated labels. Keys include:
-                - 'img' (np.ndarray): The mosaic image array with shape (H, W, C).
-                - Other keys from the input labels, updated to reflect the new image dimensions.
-
-        Examples:
-            >>> mosaic = Mosaic(dataset, imgsz=640, p=1.0, n=3)
-            >>> labels = {
-            ...     "img": np.random.rand(480, 640, 3),
-            ...     "mix_labels": [{"img": np.random.rand(480, 640, 3)} for _ in range(2)],
-            ... }
-            >>> result = mosaic._mosaic3(labels)
-            >>> print(result["img"].shape)
-            (640, 640, 3)
-        """
-        mosaic_labels = []
-        s = self.imgsz
-        for i in range(3):
-            labels_patch = labels if i == 0 else labels["mix_labels"][i - 1]
-            # Load image
-            img = labels_patch["img"]
-            msk = labels_patch["mask"]
-            h, w = labels_patch.pop("resized_shape")
-
-            # Place img in img3
-            if i == 0:  # center
-                img3 = np.full((s * 3, s * 3, img.shape[2]), 114, dtype=np.uint8)  # base image with 3 tiles
-                msk3 = np.full((s * 3, s * 3, msk.shape[2]), 114, dtype=np.uint8)
-                h0, w0 = h, w
-                c = s, s, s + w, s + h  # xmin, ymin, xmax, ymax (base) coordinates
-            elif i == 1:  # right
-                c = s + w0, s, s + w0 + w, s + h
-            elif i == 2:  # left
-                c = s - w, s + h0 - h, s, s + h0
-
-            padw, padh = c[:2]
-            x1, y1, x2, y2 = (max(x, 0) for x in c)  # allocate coords
-
-            img3[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]  # img3[ymin:ymax, xmin:xmax]
-            msk3[y1:y2, x1:x2]  = msk[y1 - padh :, x1 - padw :]  # img4[ymin:ymax, xmin:xmax]
-            # hp, wp = h, w  # height, width previous for next iteration
-
-            # Labels assuming imgsz*2 mosaic size
-            labels_patch = self._update_labels(labels_patch, padw + self.border[0], padh + self.border[1])
-            mosaic_labels.append(labels_patch)
-        final_labels = self._cat_labels(mosaic_labels)
-
-        final_labels["img"] = img3[-self.border[0] : self.border[0], -self.border[1] : self.border[1]]
-        final_labels["mask"] = msk3[-self.border[0] : self.border[0], -self.border[1] : self.border[1]]
-        return final_labels
 
     def _mosaic4(self, labels):
         """
@@ -3002,7 +2939,7 @@ class SematicMosaic(BaseMixTransform):
             # Place img in img4
             if i == 0:  # top left
                 img4 = np.full((s * 2, s * 2, img.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
-                msk4 = np.full((s * 2, s * 2, msk.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
+                msk4 = np.full((s * 2, s * 2, msk.shape[2]), 0, dtype=np.uint8)  # base image with 4 tiles
                 x1a, y1a, x2a, y2a = max(xc - w, 0), max(yc - h, 0), xc, yc  # xmin, ymin, xmax, ymax (large image)
                 x1b, y1b, x2b, y2b = w - (x2a - x1a), h - (y2a - y1a), w, h  # xmin, ymin, xmax, ymax (small image)
             elif i == 1:  # top right
@@ -3025,82 +2962,7 @@ class SematicMosaic(BaseMixTransform):
         final_labels = self._cat_labels(mosaic_labels)
         final_labels["img"] = img4
         final_labels["mask"] = msk4
-        return final_labels
 
-    def _mosaic9(self, labels):
-        """
-        Creates a 3x3 image mosaic from the input image and eight additional images.
-
-        This method combines nine images into a single mosaic image. The input image is placed at the center,
-        and eight additional images from the dataset are placed around it in a 3x3 grid pattern.
-
-        Args:
-            labels (Dict): A dictionary containing the input image and its associated labels. It should have
-                the following keys:
-                - 'img' (numpy.ndarray): The input image.
-                - 'resized_shape' (Tuple[int, int]): The shape of the resized image (height, width).
-                - 'mix_labels' (List[Dict]): A list of dictionaries containing information for the additional
-                  eight images, each with the same structure as the input labels.
-
-        Returns:
-            (Dict): A dictionary containing the mosaic image and updated labels. It includes the following keys:
-                - 'img' (numpy.ndarray): The final mosaic image.
-                - Other keys from the input labels, updated to reflect the new mosaic arrangement.
-
-        Examples:
-            >>> mosaic = Mosaic(dataset, imgsz=640, p=1.0, n=9)
-            >>> input_labels = dataset[0]
-            >>> mosaic_result = mosaic._mosaic9(input_labels)
-            >>> mosaic_image = mosaic_result["img"]
-        """
-        mosaic_labels = []
-        s = self.imgsz
-        hp, wp = -1, -1  # height, width previous
-        for i in range(9):
-            labels_patch = labels if i == 0 else labels["mix_labels"][i - 1]
-            # Load image
-            img = labels_patch["img"]
-            msk = labels_patch["mask"]
-            h, w = labels_patch.pop("resized_shape")
-
-            # Place img in img9
-            if i == 0:  # center
-                img9 = np.full((s * 3, s * 3, img.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
-                msk9 = np.full((s * 3, s * 3, msk.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
-                h0, w0 = h, w
-                c = s, s, s + w, s + h  # xmin, ymin, xmax, ymax (base) coordinates
-            elif i == 1:  # top
-                c = s, s - h, s + w, s
-            elif i == 2:  # top right
-                c = s + wp, s - h, s + wp + w, s
-            elif i == 3:  # right
-                c = s + w0, s, s + w0 + w, s + h
-            elif i == 4:  # bottom right
-                c = s + w0, s + hp, s + w0 + w, s + hp + h
-            elif i == 5:  # bottom
-                c = s + w0 - w, s + h0, s + w0, s + h0 + h
-            elif i == 6:  # bottom left
-                c = s + w0 - wp - w, s + h0, s + w0 - wp, s + h0 + h
-            elif i == 7:  # left
-                c = s - w, s + h0 - h, s, s + h0
-            elif i == 8:  # top left
-                c = s - w, s + h0 - hp - h, s, s + h0 - hp
-
-            padw, padh = c[:2]
-            x1, y1, x2, y2 = (max(x, 0) for x in c)  # allocate coords
-
-            # Image
-            img9[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]  # img9[ymin:ymax, xmin:xmax]
-            msk9[y1:y2, x1:x2] = msk[y1 - padh :, x1 - padw :]
-            hp, wp = h, w  # height, width previous for next iteration
-
-            # Labels assuming imgsz*2 mosaic size
-            labels_patch = self._update_labels(labels_patch, padw + self.border[0], padh + self.border[1])
-            mosaic_labels.append(labels_patch)
-        final_labels = self._cat_labels(mosaic_labels)
-
-        final_labels["img"] = img9[-self.border[0] : self.border[0], -self.border[1] : self.border[1]]
-        final_labels["mask"] = msk9[-self.border[0]: self.border[0], -self.border[1]: self.border[1]]
         return final_labels
 
     @staticmethod
@@ -3280,8 +3142,9 @@ class SemanticRandomFlip:
         return labels
 
 class SemanticRandomPerspective(RandomPerspective):
-    def __init__(self, degrees=0.0, translate=0.1, scale=0.5, shear=0.0, perspective=0.0, border=(0, 0), pre_transform=None):
+    def __init__(self, degrees=0.0, translate=0.1, scale=0.5, shear=0.0, perspective=0.0, border=(0, 0), pre_transform=None, num_classes=1):
         super().__init__(degrees, translate, scale, shear, perspective, border, pre_transform)
+        self.num_classes = 1
 
     def affine_transform(self, img, msk, border):
         """
@@ -3338,15 +3201,27 @@ class SemanticRandomPerspective(RandomPerspective):
 
         # Combined rotation matrix
         M = T @ S @ R @ P @ C  # order of operations (right to left) is IMPORTANT
+        # border values
+        border_values = [0 for _ in range(self.num_classes)]
         # Affine image
         if (border[0] != 0) or (border[1] != 0) or (M != np.eye(3)).any():  # image changed
             if self.perspective:
                 img = cv2.warpPerspective(img, M, dsize=self.size, borderValue=(114, 114, 114))
-                msk = cv2.warpPerspective(msk, M, dsize=self.size, borderValue=(114, 114, 114))
+                new_msk = np.zeros((self.size[1], self.size[0], self.num_classes), dtype=np.uint8)
+                for i in range(self.num_classes):
+                    new_msk[:, :, i] = cv2.warpPerspective(
+                        msk[:, :, i], M, dsize=self.size, borderValue=border_values[i], flags=cv2.INTER_NEAREST
+                    )
             else:  # affine
                 img = cv2.warpAffine(img, M[:2], dsize=self.size, borderValue=(114, 114, 114))
-                msk = cv2.warpAffine(msk, M[:2], dsize=self.size, borderValue=(114, 114, 114))
-        return img, msk, M, s
+                new_msk = np.zeros((self.size[1], self.size[0], self.num_classes), dtype=np.uint8)
+                for i in range(self.num_classes):
+                    new_msk[:, :, i] = cv2.warpAffine(
+                        msk[:, :, i], M[:2], dsize=self.size, borderValue=border_values[i], flags=cv2.INTER_NEAREST
+                    )
+        else:
+            new_msk = msk
+        return img, new_msk, M, s
 
     def __call__(self, labels):
         """

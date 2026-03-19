@@ -1,12 +1,16 @@
 # Ultralytics YOLO 🚀, AGPL-3.0 license
 
-from copy import copy
+import math
 import os
+import random
+from copy import copy
+
+import torch.nn as nn
 
 from ultralytics.models import yolo
-from ultralytics.nn.tasks import SkySegmentationModel
+from ultralytics.nn.tasks import SkySegmentationModel, SemanticModel
 from ultralytics.utils import DEFAULT_CFG, RANK, SKYSEG_CFG
-from ultralytics.utils.plotting import plot_images, plot_results
+from ultralytics.utils.plotting import plot_masks, plot_results
 from ultralytics.utils.torch_utils import de_parallel
 from ultralytics.data import build_sky_dataset
 
@@ -33,11 +37,36 @@ class SkySegmentationTrainer(yolo.detect.DetectionTrainer):
 
     def get_model(self, cfg=None, weights=None, verbose=True):
         """Return SegmentationModel initialized with specified config and weights."""
-        model = SkySegmentationModel(cfg, ch=3, nc=self.data["nc"], verbose=verbose and RANK == -1)
+        model = SemanticModel(cfg, ch=3, nc=self.data["nc"], verbose=verbose and RANK == -1)
         if weights:
             model.load(weights)
 
         return model
+
+    def preprocess_batch(self, batch):
+        """Preprocess a batch of images by scaling and converting to float"""
+        """Preprocesses a batch of images by scaling and converting to float."""
+        batch["img"] = batch["img"].to(self.device, non_blocking=True).float() / 255
+        batch["masks"] = batch["masks"].to(self.device, non_blocking=True).float()
+
+        if self.args.multi_scale:
+            imgs = batch["img"]
+            msks = batch["masks"]
+            sz = (
+                    random.randrange(int(self.args.imgsz * 0.5), int(self.args.imgsz * 1.5 + self.stride))
+                    // self.stride
+                    * self.stride
+            )  # size
+            sf = sz / max(imgs.shape[2:])  # scale factor
+            if sf != 1:
+                ns = [
+                    math.ceil(x * sf / self.stride) * self.stride for x in imgs.shape[2:]
+                ]  # new shape (stretched to gs-multiple)
+                imgs = nn.functional.interpolate(imgs, size=ns, mode="bilinear", align_corners=False)
+                msks = nn.functional.interpolate(msks.unsqueeze(1).float(), size=ns, mode="nearest").squeeze(1).long()
+            batch["img"] = imgs
+            batch["masks"] = msks
+        return batch
 
     def build_dataset(self, img_path, mode="train", batch=None):
         """
@@ -59,15 +88,19 @@ class SkySegmentationTrainer(yolo.detect.DetectionTrainer):
         )
 
     def plot_training_samples(self, batch, ni):
-        """Creates a plot of training sample images with labels and box coordinates."""
-        plot_images(
-            batch["img"],
-            batch["batch_idx"],
-            batch["cls"].squeeze(-1),
-            batch["bboxes"],
+        """Plots training samples with their masks."""
+        plot_masks(
+            images=batch["img"],
             masks=batch["masks"],
+            batch_idx=batch["batch_idx"],
+            cls=batch["cls"].squeeze(-1),
+            bboxes=batch["bboxes"],
             paths=batch["im_file"],
+            nc=self.data["nc"],
+            names=self.data["names"],
+            colors=self.data["colors"],
             fname=self.save_dir / f"train_batch{ni}.jpg",
+            mname=self.save_dir / f"mask_batch{ni}.jpg",
             on_plot=self.on_plot,
         )
 

@@ -61,4 +61,4 @@ decoder:
   - [-1, 1, nn.Upsample, [None, 2, 'nearest']]  #s / 2
   - [-1, 1, Conv, [ 32, 3, 1] ] # 1-P2/4 => s / 2
   - [-1, 1, nn.Upsample, [ None, 2, 'nearest' ] ]  #s
-  - [[16, 19, 22, -1], 1, SkySegment, [nc, 32, 256]] # Detect(P3, P4, P5)
+  - [[-1], 1, SemanticSegment, [nc, 32, 256]] # Detect(P3, P4, P5)

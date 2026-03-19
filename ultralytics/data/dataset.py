@@ -16,7 +16,7 @@ from torch.utils.data import Dataset, DataLoader
 from ultralytics.utils import LOCAL_RANK, NUM_THREADS, TQDM, colorstr
 from ultralytics.utils.ops import resample_segments
 from ultralytics.utils.torch_utils import TORCHVISION_0_18, DEFAULT_CFG_DICT
-from ultralytics.data.utils import get_files_from_dir, verify_rsi_image_and_mask, verify_sky_image_and_mask_2
+from ultralytics.data.utils import get_files_from_dir, verify_image_and_mask_sky
 from copy import deepcopy
 from ultralytics.data.augment import SemanticFormat
 
@@ -97,10 +97,11 @@ class SkyDataset(BaseDataset):
 
         with ThreadPool(NUM_THREADS) as pool:
             results = pool.imap(
-                func=verify_sky_image_and_mask,
+                func=verify_image_and_mask_sky,
                 iterable=zip(
                     self.im_files,
                     self.label_files,
+                    repeat(self.data["colors"]),
                     repeat(self.prefix),
                     repeat(self.use_keypoints),
                     repeat(len(self.data["names"])),
@@ -110,7 +111,7 @@ class SkyDataset(BaseDataset):
             )
 
             pbar = TQDM(results, desc=desc, total=total)
-            for im_file, lb, shape, segments, keypoint, nm_f, nf_f, ne_f, nc_f, msg in pbar:
+            for im_file, msk_file, lb, shape, segments, keypoint, nm_f, nf_f, ne_f, nc_f, msg in pbar:
                 nm += nm_f
                 nf += nf_f
                 ne += ne_f
@@ -118,6 +119,7 @@ class SkyDataset(BaseDataset):
                 if im_file:
                     label_dict = {
                         "im_file": im_file,
+                        "msk_file":msk_file,
                         "shape": shape,
                         "cls": lb[:, 0:1],  # n, 1
                         "bboxes": lb[:, 1:],  # n, 4
@@ -188,10 +190,10 @@ class SkyDataset(BaseDataset):
         if self.augment:
             hyp.mosaic = hyp.mosaic if self.augment and not self.rect else 0.0
             hyp.mixup = hyp.mixup if self.augment and not self.rect else 0.0
-            transforms = v8_transforms(self, self.imgsz, hyp)
+            transforms = semantic_transforms(self, self.imgsz, hyp)
         else:
             transforms = Compose([LetterBox(new_shape=(self.imgsz, self.imgsz), scaleup=False)])
-        format = Format(
+        format = SemanticFormat(
             bbox_format="xywh",
             normalize=True,
             return_mask=self.use_segments,
@@ -218,13 +220,23 @@ class SkyDataset(BaseDataset):
         label = deepcopy(self.labels[index])  # requires deepcopy() https://github.com/ultralytics/ultralytics/pull/1948
         label.pop("shape", None)  # shape is for rect, remove it
         label["img"], label["ori_shape"], label["resized_shape"] = self.load_image(index)
+        label["mask"] = cv2.imread(label["msk_file"])
         label["ratio_pad"] = (
             label["resized_shape"][0] / label["ori_shape"][0],
             label["resized_shape"][1] / label["ori_shape"][1],
         )  # for evaluation
+        label["mask"] = cv2.resize(
+            label["mask"], dsize=(label["resized_shape"][1], label["resized_shape"][0]), interpolation=cv2.INTER_NEAREST
+        )
         if self.rect:
             label["rect_shape"] = self.batch_shapes[self.batch[index]]
         return self.update_labels_info(label)
+
+    def update_mask(self, mask):
+        h, w, c = mask.shape
+        results= np.zeros((h, w, 1), dtype=np.bool_)
+        results[:,:, 0] = ((mask[:,:,0] + mask[:,:,1] + mask[:,:,2])) > 125
+        return results.astype(np.uint8)
 
     def update_labels_info(self, label):
         """
@@ -239,7 +251,6 @@ class SkyDataset(BaseDataset):
         keypoints = label.pop("keypoints", None)
         bbox_format = label.pop("bbox_format")
         normalized = label.pop("normalized")
-
         # NOTE: do NOT resample oriented boxes
         segment_resamples = 100 if self.use_obb else 1000
         if len(segments) > 0:
@@ -249,6 +260,7 @@ class SkyDataset(BaseDataset):
         else:
             segments = np.zeros((0, segment_resamples, 2), dtype=np.float32)
         label["instances"] = Instances(bboxes, segments, keypoints, bbox_format=bbox_format, normalized=normalized)
+        label["mask"] = self.update_mask(label.pop("mask"))
         return label
 
     @staticmethod
@@ -259,9 +271,9 @@ class SkyDataset(BaseDataset):
         values = list(zip(*[list(b.values()) for b in batch]))
         for i, k in enumerate(keys):
             value = values[i]
-            if k == "img":
+            if k in {"img","masks"}:
                 value = torch.stack(value, 0)
-            if k in {"masks", "keypoints", "bboxes", "cls", "segments", "obb"}:
+            if k in {"keypoints", "bboxes", "cls", "segments", "obb"}:
                 value = torch.cat(value, 0)
             new_batch[k] = value
         new_batch["batch_idx"] = list(new_batch["batch_idx"])

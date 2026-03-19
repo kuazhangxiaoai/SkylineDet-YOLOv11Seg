@@ -259,7 +259,68 @@ def verify_sky_image_and_mask_2(args):
         msg = f"{prefix}WARNING ⚠️ {im_file}: ignoring corrupt image/label: {e}"
         return [None, None, None, None, None, nm, nf, ne, nc, msg]
 
+def verify_image_and_mask_sky(args: tuple) -> list:
+    """Verify image and its mask."""
+    im_file, lb_file, colors, prefix, _keypoint, num_cls, _nkpt, _ndim = args
+    nm, nf, ne, nc, msg, segments, keypoints = 0, 0, 0, 0, "", [], None
+    try:
+        image = cv2.imread(im_file)
+        assert image is not None
+        img_shape = image.shape
 
+        # verify mask
+        mask = cv2.imread(lb_file)
+        if mask is None:
+            nm = 1
+            raise FileNotFoundError("Mask file is not existed")
+
+        msk_shape = mask.shape
+        assert msk_shape == img_shape
+
+        mask_b = mask[:, :, 0]
+        mask_g = mask[:, :, 1]
+        mask_r = mask[:, :, 2]
+
+        segments, masks, categoris = [], [], []
+
+        mb = mask_b >125
+        mg = mask_g > 125
+        mr = mask_r > 125
+        mask_i = (mb * mg * mr).astype(np.uint8) * 255
+        segment = mask2polygon(mask_i)
+        category = [0] * len(segment)
+
+        for j in range(len(segment)):
+            segments.append(segment[j])
+            categoris.append(category[j])
+        masks.append(mask_i)
+        nl = len(segments)
+
+        if nl > 0:
+            h, w, _ = img_shape
+            lb = np.zeros((nl, 5), dtype=np.float32)
+            lb[:, 0] = np.array(categoris)
+            lb[:, 1:] = get_boundingbox_from_polygons(segments, format="xyxy")
+
+            for segment in segments:
+                segment[:, 0] = segment[:, 0] / w
+                segment[:, 1] = segment[:, 1] / h
+            lb[:, 1] = lb[:, 1] / w
+            lb[:, 2] = lb[:, 2] / h
+            lb[:, 3] = lb[:, 3] / w
+            lb[:, 4] = lb[:, 4] / h
+            nf = 1
+
+        else:
+            ne = 1
+            lb = np.zeros((nl, 5), dtype=np.float32)
+
+        return im_file, lb_file, lb, img_shape, segments, keypoints, nm, nf, ne, nc, msg
+
+    except Exception as e:
+        nc = 1
+        msg = f"{prefix}WARNING ⚠️ {im_file}: ignoring corrupt image/label: {e}"
+        return None, None, None, None, None, None, nm, nf, ne, nc, msg
 
 def verify_sky_image_and_mask(args):
     im_file, lb_file, prefix, keypoint, num_cls, nkpt, ndim = args

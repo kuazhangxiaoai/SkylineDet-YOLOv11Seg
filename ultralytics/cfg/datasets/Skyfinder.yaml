@@ -17,6 +17,9 @@ test: # test images (optional)
 names:
   0: sky
 
+colors:
+  0: [255, 255, 255]
+
 
 # Download script/URL (optional)
 #download: https://github.com/ultralytics/assets/releases/download/v0.0.0/coco8-seg.zip

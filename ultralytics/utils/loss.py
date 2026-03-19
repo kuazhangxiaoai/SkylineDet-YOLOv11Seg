@@ -823,3 +823,17 @@ def dynamic_boundary_extract(mask, n_init_sample=16, thresh=114, alpha=0.1, belt
             pt[1] = pt[1] - dp
 
     return refined_points
+
+class SemsegLoss:
+    """Initialize semseg loss and criteria using the provided model"""
+    def __init__(self, model, alpha=0.3, beta=0.7):
+        self.device = next(model.parameters()).device
+        self.bce = nn.BCEWithLogitsLoss(reduction='none')
+
+    def __call__(self, preds, batch):
+        """Calculate the loss for semantic segmentation"""
+        gt_mask = batch["masks"].to(self.device)
+        batch_size = preds.shape[0]
+        loss = self.bce(preds, gt_mask).mean()
+
+        return loss * batch_size, loss.detach()
