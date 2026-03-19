@@ -11,7 +11,7 @@ scales: # model compound scaling constants, i.e. 'model=yolo11n-seg.yaml' will c
   l: [1.00, 1.00, 512] # summary: 667 layers, 27678368 parameters, 27678352 gradients, 143.0 GFLOPs
   x: [1.00, 1.50, 512] # summary: 667 layers, 62142656 parameters, 62142640 gradients, 320.2 GFLOPs
 
-scale: x
+scale: n
 
 # YOLO11n backbone
 encoder:

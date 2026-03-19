@@ -8,7 +8,7 @@ from copy import copy
 import torch.nn as nn
 
 from ultralytics.models import yolo
-from ultralytics.nn.tasks import SkySegmentationModel, SemanticModel
+from ultralytics.nn.tasks import SemanticModel
 from ultralytics.utils import DEFAULT_CFG, RANK, SKYSEG_CFG
 from ultralytics.utils.plotting import plot_masks, plot_results
 from ultralytics.utils.torch_utils import de_parallel
@@ -42,6 +42,19 @@ class SkySegmentationTrainer(yolo.detect.DetectionTrainer):
             model.load(weights)
 
         return model
+
+    def label_loss_items(self, loss_items=None, prefix="train"):
+        """
+        Returns a loss dict with labelled training loss items tensor.
+
+        Not needed for classification but necessary for segmentation & detection
+        """
+        keys = [f"{prefix}/{x}" for x in self.loss_names]
+        if loss_items is not None:
+            loss_items = [round(float(x), 5) for x in [loss_items]]  # convert tensors to 5 decimal place floats
+            return dict(zip(keys, loss_items))
+        else:
+            return keys
 
     def preprocess_batch(self, batch):
         """Preprocess a batch of images by scaling and converting to float"""

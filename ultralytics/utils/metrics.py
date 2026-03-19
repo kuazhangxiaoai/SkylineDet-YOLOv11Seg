@@ -1220,7 +1220,7 @@ class SkySegmentMetrics(SimpleClass):
         self.task = "segment"
 
 
-    def process(self, tp, tp_m, conf, pred_cls, target_cls,accuracy, precision, recall, mIoU, dice_score, mcr):
+    def process(self, precision, recall, mIoU, dice_score, mcr):
         """
         Processes the detection and segmentation metrics over the given set of predictions.
 

@@ -67,6 +67,7 @@ class SkyDataset(BaseDataset):
         self.use_obb = task == "obb"
         self.data = data
         self.skyline = skyline
+        self.task = task
         assert not (self.use_segments and self.use_keypoints), "Can not use both segments and keypoints."
         super().__init__(*args, **kwargs)
 
@@ -185,6 +186,7 @@ class SkyDataset(BaseDataset):
         if len_cls == 0:
             LOGGER.warning(f"WARNING ⚠️ No labels found in {cache_path}, training may not work correctly. {HELP_URL}")
         return labels
+
     def build_transforms(self, hyp=None):
         """Builds and appends transforms to the list."""
         if self.augment:
@@ -192,7 +194,7 @@ class SkyDataset(BaseDataset):
             hyp.mixup = hyp.mixup if self.augment and not self.rect else 0.0
             transforms = semantic_transforms(self, self.imgsz, hyp)
         else:
-            transforms = Compose([LetterBox(new_shape=(self.imgsz, self.imgsz), scaleup=False)])
+            transforms = Compose([LetterBox(new_shape=(self.imgsz, self.imgsz), scaleup=False, task=self.task)])
         format = SemanticFormat(
             bbox_format="xywh",
             normalize=True,

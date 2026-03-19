@@ -7,7 +7,6 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torchmetrics.functional.multimodal.clip_iqa import images
 
 from ultralytics.utils import DEFAULT_CFG, yaml_load,SKYSEG_CFG
 
@@ -84,24 +83,34 @@ class SkySegmentationValidator(DetectionValidator):
 
     def postprocess(self, preds):
         """Post-processes YOLO predictions and returns output detections with proto."""
-        p = ops.non_max_suppression(
-            preds[0],
-            self.args.conf,
-            self.args.iou,
-            labels=self.lb,
-            multi_label=True,
-            agnostic=self.args.single_cls or self.args.agnostic_nms,
-            max_det=self.args.max_det,
-            nc=self.nc,
-        )
-        proto = preds[1][-1] if len(preds[1]) == 3 else preds[1]  # second output is len 3 if pt, but only 1 if exported
-        return p, proto
+        return preds.sigmoid()
+
+    def print_results(self):
+        """Prints training/validation set metrics per class."""
+        pf = "%22s" + "%11.3g" * len(self.metrics.keys)  # print format
+        LOGGER.info(pf % ("all", *self.metrics.mean_results()))
+
+        # Print results per class
+        if self.args.verbose and not self.training and self.nc > 1 and len(self.stats):
+            for i in range(self.nc):
+                LOGGER.info(pf % (self.names[i], *self.metrics.class_result(i)))
+
 
     def _prepare_batch(self, si, batch):
         """Prepares a batch for training or inference by processing images and targets."""
         prepared_batch = super()._prepare_batch(si, batch)
         prepared_batch["batch_idx"] = si
         return prepared_batch
+
+    def get_stats(self):
+        """Returns metrics statistics and results dictionary."""
+        stats = {}
+        for k,v in self.stats.items():
+            stats[k] = torch.cat(v, 0).cpu().numpy()
+
+        if len(stats):
+            self.metrics.process(**stats)
+        return self.metrics.results_dict
 
     def _prepare_pred(self, pred):
         """Prepares a batch for training or inference by processing images and targets."""
@@ -120,11 +129,11 @@ class SkySegmentationValidator(DetectionValidator):
             )
             pbatch = self._prepare_batch(si, batch)
             cls, bbox = pbatch.pop("cls"), pbatch.pop("bbox")
-            nl = len(cls)
             stat["target_cls"] = cls
             stat["target_img"] = cls.unique()
 
             # Masks
+            gt_mask = batch["masks"][si]
             if len(batch["masks"][si].shape) == 2:
                 gt_mask = F.one_hot(batch["masks"][si], num_classes=self.nc).permute(2, 0, 1)
                 pred = F.one_hot(pred.max(dim=0)[1], num_classes=self.nc).permute(2, 0, 1)
