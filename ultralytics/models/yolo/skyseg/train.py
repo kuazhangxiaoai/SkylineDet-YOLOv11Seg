@@ -92,13 +92,9 @@ class SkySegmentationTrainer(yolo.detect.DetectionTrainer):
         plot_masks(
             images=batch["img"],
             masks=batch["masks"],
-            batch_idx=batch["batch_idx"],
-            cls=batch["cls"].squeeze(-1),
-            bboxes=batch["bboxes"],
             paths=batch["im_file"],
             nc=self.data["nc"],
             names=self.data["names"],
-            colors=self.data["colors"],
             fname=self.save_dir / f"train_batch{ni}.jpg",
             mname=self.save_dir / f"mask_batch{ni}.jpg",
             on_plot=self.on_plot,

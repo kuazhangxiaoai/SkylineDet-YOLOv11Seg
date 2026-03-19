@@ -1583,22 +1583,15 @@ def feature_visualization(x, module_type, stage, n=32, save_dir=Path("exp/detect
 def plot_masks(
     images: torch.Tensor | np.ndarray,
     masks: torch.Tensor | np.ndarray,
-    batch_idx: torch.Tensor | np.ndarray,
-    cls: torch.Tensor | np.ndarray,
-    bboxes: torch.Tensor | np.ndarray = np.zeros(0, dtype=np.float32),
-    confs: torch.Tensor | np.ndarray | None = None,
-    kpts: torch.Tensor | np.ndarray = np.zeros((0, 51), dtype=np.float32),
     paths: list[str] | None = None,
     nc: int = -1,
     fname: str = "images.jpg",
     mname: str = "images.jpg",
     names: dict[int, str] | None = None,
-    colors: dict[int, list] | None = None,
     on_plot: Callable | None = None,
     max_size: int = 1920,
     max_subplots: int = 16,
     save: bool = True,
-    conf_thres: float = 0.25,
 ) -> np.ndarray | None:
     """Plot image and mask for semseg task.
 
