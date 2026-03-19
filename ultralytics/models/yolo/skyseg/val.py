@@ -211,11 +211,15 @@ class SkySegmentationValidator(DetectionValidator):
 
     def plot_val_samples(self, batch, ni):
         """Plots validation samples with bounding box labels."""
+        pred_masks = torch.cat(self.plot_masks)
+        pred_masks = pred_masks * 255 if pred_masks.max() <= 1 else pred_masks
         plot_masks(
             images=batch["img"],
-            masks=batch["masks"],
+            masks=pred_masks,
+            nc=1,
             paths=batch["im_file"],
             fname=self.save_dir / f"val_batch{ni}_labels.jpg",
+            mname=self.save_dir / f"mask_batch{ni}_labels.jpg",
             names=self.names,
             on_plot=self.on_plot,
         )
